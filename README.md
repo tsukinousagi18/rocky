@@ -2,6 +2,8 @@
 
 Rocky is a Just-In-Time (JIT) compiler project that uses LLVM's ORCJIT API as its backend. The goal is to implement a compact language and compiler pipeline able to JIT-compile programs and run simple games (for example, Pong or Tic‑Tac‑Toe) using Raylib bindings. The project includes a C-based frontend, a testing suite, and build automation via Pixi.
 
+Project Website - https://rocky.sohamk10.workers.dev/
+
 ## Project goals
 
 - Implement a toy programming language and a complete compiler pipeline:
@@ -92,7 +94,7 @@ Common test commands:
 CMake builds replace placeholders like `%rocky` and `%parser` with the actual binary paths in test runs.
 
 ## Contributors
-
+As of now, here’s the set of people who you should seek for reviews, based of what component you’re working on.
 Thanks to everyone who has contributed so far. 
 
 | Component | Contributors |
