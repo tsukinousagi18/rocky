@@ -254,6 +254,95 @@ const char* binary_op_str(BinaryOp op) {
     }
 }
 
+/** @copydoc stmt_kind_str */
+const char* stmt_kind_str(StmtKind kind) {
+    switch (kind) {
+    case STMT_EXPR:
+        return "expression";
+    case STMT_IF:
+        return "if";
+    case STMT_WHILE:
+        return "while";
+    case STMT_RETURN:
+        return "return";
+    case STMT_FOR:
+        return "for";
+    case STMT_BLOCK:
+        return "block";
+    case STMT_FUNC:
+        return "function";
+    case STMT_DECLARATION:
+        return "declaration";
+    case STMT_ASSIGN:
+        return "assignment";
+    case STMT_CONTINUE:
+        return "continue";
+    case STMT_BREAK:
+        return "break";
+    default:
+        return "invalid statement";
+    }
+}
+
+static void print_tree_prefix(int depth, int is_last, int sibling) {
+    for (int i = 0; i < depth - 1; i++) {
+        printf((sibling & (1 << i)) ? "    " : "│   ");
+    }
+
+    if (depth > 0)
+        printf(is_last ? "└── " : "├── ");
+}
+
+static void print_type_expr(const TypeExpr* type) {
+    if (!type) {
+        printf("void");
+        return;
+    }
+
+    switch (type->kind) {
+    case TYPE_PRIMITIVE:
+        switch (type->defi.primitive.primitive) {
+        case TOKEN_TYPE_INT:
+            printf("int");
+            break;
+        case TOKEN_TYPE_FLOAT:
+            printf("float");
+            break;
+        case TOKEN_TYPE_STRING:
+            printf("string");
+            break;
+        case TOKEN_TYPE_BOOL:
+            printf("bool");
+            break;
+        case TOKEN_TYPE_SIZE_T:
+            printf("size_t");
+            break;
+        default:
+            printf("?");
+            break;
+        }
+        break;
+    case TYPE_POINTER:
+        print_type_expr(type->defi.pointer.base);
+        printf("*");
+        break;
+    case TYPE_FUNC_POINTER: {
+        printf("fn(");
+        for (const Param* param = type->defi.func_pointer.params; param; param = param->next) {
+            print_type_expr(param->type);
+            if (param->next)
+                printf(", ");
+        }
+        printf("): ");
+        print_type_expr(type->defi.func_pointer.return_type);
+        break;
+    }
+    default:
+        printf("?");
+        break;
+    }
+}
+
 /** @brief Recursively prints a list of child expressions in tree form. */
 void print_children(const Expr** children, int count, int depth, int sibling) {
     for (int i = 0; i < count; i++) {
@@ -279,18 +368,7 @@ void print_expr(const Expr* expr, int depth, int is_last, int sibling) {
      *  - "    " if this branch has ended at that level
      */
 
-    for (int i = 0; i < depth - 1; i++) {
-        printf((sibling & (1 << i)) ? "    " : "│   ");
-    }
-
-    /*
-     * Selects the appropriate branch symbol:
-     *  - "├──" for intermediate nodes
-     *  - "└──" for the last child in the current subtree
-     */
-
-    if (depth > 0)
-        printf(is_last ? "└── " : "├── ");
+    print_tree_prefix(depth, is_last, sibling);
 
     switch (expr->kind) {
     case EXPR_INT_LIT:
@@ -303,6 +381,10 @@ void print_expr(const Expr* expr, int depth, int is_last, int sibling) {
 
     case EXPR_BOOL_LIT:
         printf("%s\n", expr->as.bval ? "true" : "false");
+        break;
+
+    case EXPR_STRING_LIT:
+        printf("\"%.*s\"\n", expr->as.str.len, expr->as.str.start);
         break;
 
     case EXPR_IDENT:
@@ -326,7 +408,125 @@ void print_expr(const Expr* expr, int depth, int is_last, int sibling) {
         break;
 
     default:
-        printf("Invalid EXPR");
+        printf("invalid expression\n");
         break;
+    }
+}
+
+static void print_stmt_child(const Stmt* stmt, int depth, int is_last, int sibling) {
+    print_stmt(stmt, depth + 1, is_last, sibling | (is_last << depth));
+}
+
+static void print_expr_child(const Expr* expr, int depth, int is_last, int sibling) {
+    print_expr(expr, depth + 1, is_last, sibling | (is_last << depth));
+}
+
+static void print_stmt_node(const Stmt* stmt, int depth, int is_last, int sibling) {
+    print_tree_prefix(depth, is_last, sibling);
+
+    switch (stmt->kind) {
+    case STMT_EXPR:
+        printf("%s\n", stmt_kind_str(stmt->kind));
+        if (stmt->defi.expr_stmt.expr)
+            print_expr_child(stmt->defi.expr_stmt.expr, depth, 1, sibling);
+        break;
+
+    case STMT_IF: {
+        printf("%s\n", stmt_kind_str(stmt->kind));
+        int has_else = stmt->defi.if_stmt.else_body != NULL;
+        print_expr_child(stmt->defi.if_stmt.cond, depth, 0, sibling);
+        print_stmt_child(stmt->defi.if_stmt.body, depth, !has_else, sibling);
+        if (has_else)
+            print_stmt_child(stmt->defi.if_stmt.else_body, depth, 1, sibling);
+        break;
+    }
+
+    case STMT_WHILE:
+        printf("%s\n", stmt_kind_str(stmt->kind));
+        print_expr_child(stmt->defi.while_stmt.cond, depth, 0, sibling);
+        print_stmt_child(stmt->defi.while_stmt.body, depth, 1, sibling);
+        break;
+
+    case STMT_RETURN:
+        printf("%s\n", stmt_kind_str(stmt->kind));
+        print_expr_child(stmt->defi.return_stmt.value, depth, 1, sibling);
+        break;
+
+    case STMT_FOR:
+        printf("%s\n", stmt_kind_str(stmt->kind));
+        print_stmt_child(stmt->defi.for_stmt.declaration, depth, 0, sibling);
+        print_expr_child(stmt->defi.for_stmt.cond, depth, 0, sibling);
+        print_stmt_child(stmt->defi.for_stmt.update, depth, 0, sibling);
+        print_stmt_child(stmt->defi.for_stmt.body, depth, 1, sibling);
+        break;
+
+    case STMT_BLOCK: {
+        printf("%s\n", stmt_kind_str(stmt->kind));
+        if (stmt->defi.block_stmt.body)
+            print_stmt_child(stmt->defi.block_stmt.body, depth, 1, sibling);
+        break;
+    }
+
+    case STMT_FUNC: {
+        printf("%s %.*s(", stmt_kind_str(stmt->kind), (int)stmt->defi.func_stmt.name.length,
+               stmt->defi.func_stmt.name.start);
+        for (const Param* param = stmt->defi.func_stmt.params; param; param = param->next) {
+            printf("%.*s: ", (int)param->name.length, param->name.start);
+            print_type_expr(param->type);
+            if (param->next)
+                printf(", ");
+        }
+        printf(")");
+        if (stmt->defi.func_stmt.return_type) {
+            printf(": ");
+            print_type_expr(stmt->defi.func_stmt.return_type);
+        }
+        printf("\n");
+        print_stmt_child(stmt->defi.func_stmt.body, depth, 1, sibling);
+        break;
+    }
+
+    case STMT_DECLARATION:
+        printf("%s %.*s: ", stmt_kind_str(stmt->kind),
+               (int)stmt->defi.declaration_stmt.name.length,
+               stmt->defi.declaration_stmt.name.start);
+        print_type_expr(stmt->defi.declaration_stmt.type);
+        printf("\n");
+        print_expr_child(stmt->defi.declaration_stmt.expr, depth, 1, sibling);
+        break;
+
+    case STMT_ASSIGN:
+        printf("%s %.*s\n", stmt_kind_str(stmt->kind),
+               (int)stmt->defi.assign_stmt.name.length, stmt->defi.assign_stmt.name.start);
+        print_expr_child(stmt->defi.assign_stmt.value, depth, 1, sibling);
+        break;
+
+    case STMT_CONTINUE:
+    case STMT_BREAK:
+        printf("%s\n", stmt_kind_str(stmt->kind));
+        break;
+
+    default:
+        printf("%s\n", stmt_kind_str(stmt->kind));
+        break;
+    }
+}
+
+/** @copydoc print_stmt */
+void print_stmt(const Stmt* stmt, int depth, int is_last, int sibling) {
+    if (!stmt) {
+        print_tree_prefix(depth, is_last, sibling);
+        printf("[NULL STMT]\n");
+        return;
+    }
+
+    for (const Stmt* current = stmt; current; current = current->next) {
+        int current_is_last = current->next ? 0 : is_last;
+        int current_sibling = sibling;
+        if (depth > 0) {
+            current_sibling &= ~(1 << (depth - 1));
+            current_sibling |= current_is_last << (depth - 1);
+        }
+        print_stmt_node(current, depth, current_is_last, current_sibling);
     }
 }

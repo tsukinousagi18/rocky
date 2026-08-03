@@ -79,10 +79,7 @@ static void dump_tokens(const char* source) {
     }
 }
 
-/*
- * Parse source into an AST tree and print it.
- * So its like : tokens -> parse_expr -> print_expr
- */
+/* Parse source into an AST tree and print it. */
 static int dump_ast(const char* source) {
     Token tokens[MAX_TOKENS];
     int n = tokenize_all(source, tokens, MAX_TOKENS);
@@ -97,8 +94,7 @@ static int dump_ast(const char* source) {
     Parser parser;
     parser_init(&parser, tokens, n, &arena);
     Stmt* root = parse_program(&parser);
-
-    // TODO: Call print_stmt
+    print_stmt(root, 0, 1, 0);
 
     arena_free(&arena);
     return 0;

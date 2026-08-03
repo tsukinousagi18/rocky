@@ -1,0 +1,44 @@
+// Check that statement nodes and their children dump as one tree.
+
+// RUN: %rocky --dump-ast %s | FileCheck %s
+
+int answer = 42;
+
+fn main(limit: int): int {
+    int i = 0;
+    while (i < limit) {
+        if (i == 2) {
+            break;
+        } else {
+            i = i + 1;
+            continue;
+        }
+    }
+    return i;
+}
+
+// CHECK: declaration answer: int
+// CHECK-NEXT: └── 42
+// CHECK-NEXT: function main(limit: int): int
+// CHECK-NEXT: └── block
+// CHECK-NEXT:     ├── declaration i: int
+// CHECK-NEXT:     │   └── 0
+// CHECK-NEXT:     ├── while
+// CHECK-NEXT:     │   ├── <
+// CHECK-NEXT:     │   │   ├── i
+// CHECK-NEXT:     │   │   └── limit
+// CHECK-NEXT:     │   └── block
+// CHECK-NEXT:     │       └── if
+// CHECK-NEXT:     │           ├── ==
+// CHECK-NEXT:     │           │   ├── i
+// CHECK-NEXT:     │           │   └── 2
+// CHECK-NEXT:     │           ├── block
+// CHECK-NEXT:     │           │   └── break
+// CHECK-NEXT:     │           └── block
+// CHECK-NEXT:     │               ├── assignment i
+// CHECK-NEXT:     │               │   └── +
+// CHECK-NEXT:     │               │       ├── i
+// CHECK-NEXT:     │               │       └── 1
+// CHECK-NEXT:     │               └── continue
+// CHECK-NEXT:     └── return
+// CHECK-NEXT:         └── i
