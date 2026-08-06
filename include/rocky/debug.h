@@ -9,6 +9,7 @@
 
 #include <rocky/lexer/token.h>
 #include <rocky/parser/ast.h>
+#include <rocky/parser/nodes.h>
 
 /** @brief Bitmask controlling which token fields are printed. */
 typedef enum {
@@ -42,8 +43,20 @@ void print_token(Token* token, TokenPrintFlags flags);
  * @brief Prints an expression tree using ASCII connectors.
  * @param expr Root expression to print.
  * @param depth Current depth in the recursion.
- * @param isLast Non-zero if node is last child at its level.
+ * @param is_last Non-zero if node is last child at its level.
  * @param sibling Bitmask describing ancestor sibling structure.
  */
-void print_expr(const Expr* expr, int depth, int isLast, int sibling);
+void print_expr(const Expr* expr, int depth, int is_last, int sibling);
+
+/** @brief Converts a statement kind to a human-readable display string. */
+const char* stmt_kind_str(StmtKind kind);
+
+/**
+ * @brief Prints a statement tree using ASCII connectors.
+ * @param stmt Root statement to print. Statements linked through next are also printed.
+ * @param depth Current depth in the recursion.
+ * @param is_last Non-zero if node is last child at its level.
+ * @param sibling Bitmask describing ancestor sibling structure.
+ */
+void print_stmt(const Stmt* stmt, int depth, int is_last, int sibling);
 #endif
