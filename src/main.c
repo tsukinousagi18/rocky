@@ -8,18 +8,20 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <rocky/adt/linked_list.h>
 #include <rocky/cli.h>
 #include <rocky/debug.h>
 #include <rocky/lexer/lexer.h>
 #include <rocky/parser/parser.h>
-#include <rocky/adt/linked_list.h>
+#include <rocky/parser/sema/sema.h>
+#include <rocky/parser/sema/symtable.h>
 
 /* Max tokens we can store when parsing. */
 #define MAX_TOKENS 4096
 
 /* Read a whole file into a string. Caller must free() it. */
-static char *read_file(const char *path) {
-    FILE *f = fopen(path, "rb");
+static char* read_file(const char* path) {
+    FILE* f = fopen(path, "rb");
     if (!f) {
         return NULL;
     }
@@ -33,7 +35,7 @@ static char *read_file(const char *path) {
         return NULL;
     }
 
-    char *buf = malloc((size_t)size + 1);
+    char* buf = malloc((size_t)size + 1);
     if (!buf) {
         fclose(f);
         return NULL;
@@ -46,7 +48,7 @@ static char *read_file(const char *path) {
 }
 
 /* Turn source code into tokens. Returns how many tokens we got. */
-static int tokenize_all(const char *source, Token *out, int cap) {
+static int tokenize_all(const char* source, Token* out, int cap) {
     Lexer lexer;
     lexer_init(&lexer, source);
 
@@ -64,8 +66,20 @@ static int tokenize_all(const char *source, Token *out, int cap) {
     return count;
 }
 
+/* Build a linked list of Token* into the token array. Caller frees the list. */
+static LinkedList* tokens_to_list(Token* tokens, int n) {
+    LinkedList* list = create_linked_list();
+    if (!list) {
+        return NULL;
+    }
+    for (int i = 0; i < n; i++) {
+        linked_list_append(list, &tokens[i]);
+    }
+    return list;
+}
+
 /* Print every token (for --dump-tokens). */
-static void dump_tokens(const char *source) {
+static void dump_tokens(const char* source) {
     Lexer lexer;
     lexer_init(&lexer, source);
 
@@ -78,11 +92,8 @@ static void dump_tokens(const char *source) {
     }
 }
 
-/*
- * Parse source into an AST tree and print it.
- * So its like : tokens -> parse_expr -> print_expr
- */
-static int dump_ast(const char *source) {
+/* Parse source into an AST tree and print it. */
+static int dump_ast(const char* source) {
     Token tokens[MAX_TOKENS];
     int n = tokenize_all(source, tokens, MAX_TOKENS);
     if (n < 0) {
@@ -90,13 +101,10 @@ static int dump_ast(const char *source) {
         return 1;
     }
 
-    LinkedList *token_list = create_linked_list();
+    LinkedList* token_list = tokens_to_list(tokens, n);
     if (!token_list) {
         fprintf(stderr, "error: out of memory\n");
         return 1;
-    }
-    for (int i = 0; i < n; i++) {
-        linked_list_append(token_list, &tokens[i]);
     }
 
     Arena arena;
@@ -104,21 +112,58 @@ static int dump_ast(const char *source) {
 
     Parser parser;
     parser_init(&parser, token_list, &arena);
-    Expr *root = parse_expr(&parser, 0);
-    print_expr(root, 0, 1, 0);
+    Stmt* root = parse_program(&parser);
+    print_stmt(root, 0, 1, 0);
 
     arena_free(&arena);
     free_linked_list(token_list);
     return 0;
 }
 
-int main(int argc, char **argv) {
+static int run_sema(const char* source, int dump_sym_table) {
+    Token tokens[MAX_TOKENS];
+    int n = tokenize_all(source, tokens, MAX_TOKENS);
+    if (n < 0) {
+        fprintf(stderr, "error: too many tokens\n");
+        return 1;
+    }
+
+    LinkedList* token_list = tokens_to_list(tokens, n);
+    if (!token_list) {
+        fprintf(stderr, "error: out of memory\n");
+        return 1;
+    }
+
+    Arena arena;
+    arena_init(&arena, 64 * 1024);
+    Parser parser;
+    parser_init(&parser, token_list, &arena);
+    Stmt* program = parse_program(&parser);
+
+    Sema sema;
+    init_sema(&sema);
+    bool ok = sema_check(&sema, program);
+
+    if (dump_sym_table) {
+        dump_symbol_table(&sema.table);
+    }
+
+    if (!ok) {
+        fprintf(stderr, "%d error(s) found\n", sema.errors);
+    }
+
+    free_sema(&sema);
+    arena_free(&arena);
+    free_linked_list(token_list);
+    return ok ? 0 : 1;
+}
+
+int main(int argc, char** argv) {
     RockyCliOptions options;
     char errbuf[256] = {0};
 
     /* read command line flags (-c, --dump-ast, and so on...) */
-    RockyCliParseStatus status =
-        rocky_cli_parse(argc, argv, &options, errbuf, sizeof(errbuf));
+    RockyCliParseStatus status = rocky_cli_parse(argc, argv, &options, errbuf, sizeof(errbuf));
 
     if (status == ROCKY_CLI_PARSE_HELP) {
         return 0;
@@ -130,8 +175,8 @@ int main(int argc, char **argv) {
     }
 
     /* Get the source code (from -c or from a file) */
-    char *file_source = NULL;
-    const char *source = options.inline_code;
+    char* file_source = NULL;
+    const char* source = options.inline_code;
 
     if (!source) {
         file_source = read_file(options.input_file);
@@ -151,6 +196,11 @@ int main(int argc, char **argv) {
 
     if (options.dump_ast) {
         rc = dump_ast(source);
+    }
+
+    if (options.dump_symbol_table) {
+        printf("dump_symbol_table = %d\n", options.dump_symbol_table);
+        rc = run_sema(source, 1);
     }
 
     free(file_source);

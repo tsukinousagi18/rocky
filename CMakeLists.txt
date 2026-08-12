@@ -16,9 +16,9 @@ endif()
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-include_directories(${LLVM_INCLUDE_DIRS})
-include_directories(external/unity/src)
-include_directories(external)
+include_directories(SYSTEM ${LLVM_INCLUDE_DIRS})
+include_directories(SYSTEM external/unity/src)
+include_directories(SYSTEM external)
 add_definitions(${LLVM_DEFINITIONS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
@@ -31,6 +31,8 @@ add_executable(rocky
   src/lexer.c
   src/parser.c
   src/jit.c
+  src/symtable.c
+  src/sema.c
   src/adt/linked_list.c
   ${ARGPARSE_SOURCES}
 )
@@ -98,9 +100,10 @@ foreach(test_src ${TEST_SOURCES})
         ${ARGPARSE_SOURCES}
         external/unity/src/unity.c
     )
-
     target_include_directories(${test_name} PUBLIC
         include
+    )
+    target_include_directories(${test_name} SYSTEM PUBLIC
         external/unity/src
         external/argparse
     )
