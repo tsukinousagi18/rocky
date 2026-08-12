@@ -9,27 +9,25 @@
 
 #include <rocky/parser/ast.h>
 #include <rocky/arena.h>
+#include <rocky/adt/linked_list.h>
 
-/** @brief Parser state over pre-tokenized input. */
+/** @brief Parser state over a linked list of Token pointers. */
 typedef struct {
-    /** @brief Token stream. */
-    const Token *tokens;
+    /** @brief Token stream (each node data is a Token *). */
+    LinkedList *tokens;
     /** @brief Current token index. */
-    int          pos;
-    /** @brief Total token count. */
-    int          len;
+    int         pos;
     /** @brief Arena used for AST node allocation. */
-    Arena       *arena;
+    Arena      *arena;
 } Parser;
 
 /**
  * @brief Initializes parser state.
  * @param p Parser output state.
- * @param tokens Token stream to parse.
- * @param len Number of entries in @p tokens.
+ * @param tokens Linked list of Token * (caller owns list and tokens).
  * @param arena Arena allocator used for AST nodes.
  */
-void  parser_init (Parser *p, const Token *tokens, int len, Arena *arena);
+void  parser_init(Parser *p, LinkedList *tokens, Arena *arena);
 
 /**
  * @brief Parses expression using Pratt binding power recursion.
@@ -37,6 +35,6 @@ void  parser_init (Parser *p, const Token *tokens, int len, Arena *arena);
  * @param min_bp Minimum binding power for this parse level.
  * @return Root AST expression node.
  */
-Expr *parse_expr  (Parser *p, int min_bp);
+Expr *parse_expr(Parser *p, int min_bp);
 
 #endif

@@ -12,6 +12,7 @@
 #include <rocky/debug.h>
 #include <rocky/lexer/lexer.h>
 #include <rocky/parser/parser.h>
+#include <rocky/adt/linked_list.h>
 
 /* Max tokens we can store when parsing. */
 #define MAX_TOKENS 4096
@@ -89,15 +90,25 @@ static int dump_ast(const char *source) {
         return 1;
     }
 
+    LinkedList *token_list = create_linked_list();
+    if (!token_list) {
+        fprintf(stderr, "error: out of memory\n");
+        return 1;
+    }
+    for (int i = 0; i < n; i++) {
+        linked_list_append(token_list, &tokens[i]);
+    }
+
     Arena arena;
     arena_init(&arena, 64 * 1024);
 
     Parser parser;
-    parser_init(&parser, tokens, n, &arena);
+    parser_init(&parser, token_list, &arena);
     Expr *root = parse_expr(&parser, 0);
     print_expr(root, 0, 1, 0);
 
     arena_free(&arena);
+    free_linked_list(token_list);
     return 0;
 }
 
