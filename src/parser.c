@@ -46,14 +46,24 @@ static Expr* alloc_expr(Parser* p, ExprKind kind, Token tok) {
     return e;
 }
 
-/* ── Token navigation ────────────────────────────────────── */
+/* ── Token navigation (tokens list holds Token *) ────────── */
+
+static Token token_at(const Parser* p, int index) {
+    void* data = linked_list_get(p->tokens, index);
+    if (!data) {
+        Token eof = {0};
+        eof.type = TOKEN_EOF;
+        return eof;
+    }
+    return *(Token*)data;
+}
 
 static Token peek(const Parser* p) {
-    return p->tokens[p->pos];
+    return token_at(p, p->pos);
 }
 
 static Token advance(Parser* p) {
-    Token t = p->tokens[p->pos];
+    Token t = token_at(p, p->pos);
     if (t.type != TOKEN_EOF)
         p->pos++;
     return t;
@@ -192,10 +202,9 @@ static BinaryOp tok_to_binop(TokenKind k) {
 
 /* ── Core Pratt loop ─────────────────────────────────────── */
 
-void parser_init(Parser* p, const Token* tokens, int len, Arena* arena) {
+void parser_init(Parser* p, LinkedList* tokens, Arena* arena) {
     p->tokens = tokens;
     p->pos = 0;
-    p->len = len;
     p->arena = arena;
 }
 
@@ -338,7 +347,7 @@ Stmt* parse_expr_stmt(Parser* p) {
     }
 
     // assignment — IDENT followed by '='
-    if (t.type == TOKEN_IDENTIFIER && p->tokens[p->pos + 1].type == TOKEN_EQUAL) {
+    if (t.type == TOKEN_IDENTIFIER && token_at(p, p->pos + 1).type == TOKEN_EQUAL) {
         return parse_variable_assignment(p);
     }
 

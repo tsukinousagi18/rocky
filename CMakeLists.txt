@@ -24,7 +24,18 @@ link_directories(${LLVM_LIBRARY_DIRS})
 
 set(ARGPARSE_SOURCES external/argparse/argparse.c)
 
-add_executable(rocky src/main.c src/cli.c src/debug.c src/lexer.c src/parser.c src/jit.c src/symtable.c src/sema.c ${ARGPARSE_SOURCES})
+add_executable(rocky
+  src/main.c
+  src/cli.c
+  src/debug.c
+  src/lexer.c
+  src/parser.c
+  src/jit.c
+  src/symtable.c
+  src/sema.c
+  src/adt/linked_list.c
+  ${ARGPARSE_SOURCES}
+)
 target_include_directories(rocky PUBLIC include)
 
 if(WIN32)

@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <rocky/adt/linked_list.h>
 #include <rocky/cli.h>
 #include <rocky/debug.h>
 #include <rocky/lexer/lexer.h>
@@ -65,6 +66,18 @@ static int tokenize_all(const char* source, Token* out, int cap) {
     return count;
 }
 
+/* Build a linked list of Token* into the token array. Caller frees the list. */
+static LinkedList* tokens_to_list(Token* tokens, int n) {
+    LinkedList* list = create_linked_list();
+    if (!list) {
+        return NULL;
+    }
+    for (int i = 0; i < n; i++) {
+        linked_list_append(list, &tokens[i]);
+    }
+    return list;
+}
+
 /* Print every token (for --dump-tokens). */
 static void dump_tokens(const char* source) {
     Lexer lexer;
@@ -88,15 +101,22 @@ static int dump_ast(const char* source) {
         return 1;
     }
 
+    LinkedList* token_list = tokens_to_list(tokens, n);
+    if (!token_list) {
+        fprintf(stderr, "error: out of memory\n");
+        return 1;
+    }
+
     Arena arena;
     arena_init(&arena, 64 * 1024);
 
     Parser parser;
-    parser_init(&parser, tokens, n, &arena);
+    parser_init(&parser, token_list, &arena);
     Stmt* root = parse_program(&parser);
     print_stmt(root, 0, 1, 0);
 
     arena_free(&arena);
+    free_linked_list(token_list);
     return 0;
 }
 
@@ -108,10 +128,16 @@ static int run_sema(const char* source, int dump_sym_table) {
         return 1;
     }
 
+    LinkedList* token_list = tokens_to_list(tokens, n);
+    if (!token_list) {
+        fprintf(stderr, "error: out of memory\n");
+        return 1;
+    }
+
     Arena arena;
     arena_init(&arena, 64 * 1024);
     Parser parser;
-    parser_init(&parser, tokens, n, &arena);
+    parser_init(&parser, token_list, &arena);
     Stmt* program = parse_program(&parser);
 
     Sema sema;
@@ -128,6 +154,7 @@ static int run_sema(const char* source, int dump_sym_table) {
 
     free_sema(&sema);
     arena_free(&arena);
+    free_linked_list(token_list);
     return ok ? 0 : 1;
 }
 

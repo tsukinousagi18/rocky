@@ -6,6 +6,7 @@
 
 #include "unity.h"
 #include <rocky/parser/parser.h>
+#include <rocky/adt/linked_list.h>
 #include <rocky/debug.h>
 #include <stdio.h>
 #include <string.h>
@@ -77,9 +78,15 @@ static Token tok_eof(void) {
 
 /** @brief Parses a token buffer into one expression root. */
 static Expr* parse_tokens(Token *tokens, int len) {
+    LinkedList *list = create_linked_list();
+    for (int i = 0; i < len; i++) {
+        linked_list_append(list, &tokens[i]);
+    }
     Parser p;
-    parser_init(&p, tokens, len, &arena);
-    return parse_expr(&p, 0);
+    parser_init(&p, list, &arena);
+    Expr *root = parse_expr(&p, 0);
+    free_linked_list(list);
+    return root;
 }
 
 /* ── tests ───────────────────────────────────────────────── */
